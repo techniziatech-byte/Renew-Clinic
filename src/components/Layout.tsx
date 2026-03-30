@@ -157,9 +157,16 @@ export default function Layout({ children, userRole = 'admin', userName = 'Admin
 
         <header className="h-20 bg-white/60 backdrop-blur-md border-b border-slate-200/60 flex items-center px-10 justify-between z-10">
           <div className="flex flex-col">
-            <h1 className="text-2xl font-display font-bold text-slate-900">
-              {navItems.find(item => item.path === location.pathname)?.name || 'Dashboard'}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-display font-bold text-slate-900">
+                {navItems.find(item => item.path === location.pathname)?.name || 'Dashboard'}
+              </h1>
+              {window.location.hostname.includes('run.app') && !process.env.VITE_SUPABASE_URL && (
+                <span className="px-3 py-1 bg-amber-100 text-amber-600 text-[10px] font-bold uppercase tracking-widest rounded-full border border-amber-200">
+                  Demo Mode
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-400 font-medium">Welcome back, {userName.split(' ')[0]}!</p>
           </div>
           <div className="flex items-center space-x-6">

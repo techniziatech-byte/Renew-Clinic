@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { Search, UserPlus, History, MapPin, Phone, User, Calendar as CalendarIcon, Users, Filter, ArrowRight, Edit2, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
+import { supabase } from '../lib/supabase';
 
 const patientSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -18,13 +19,6 @@ const patientSchema = z.object({
 
 type PatientFormValues = z.infer<typeof patientSchema>;
 
-const MOCK_PATIENTS = [
-  { id: '1', name: 'John Doe', phone: '1234567890', age: 35, gender: 'male', address: '123 Main St, City', medicalHistory: 'None', lastVisit: '2026-03-15' },
-  { id: '2', name: 'Sarah Johnson', phone: '9876543210', age: 28, gender: 'female', address: '456 Oak Ave, Town', medicalHistory: 'Allergic to Penicillin', lastVisit: '2026-03-20' },
-  { id: '3', name: 'Michael Brown', phone: '5551234567', age: 42, gender: 'male', address: '789 Pine Rd, Village', medicalHistory: 'Hypertension', lastVisit: '2026-03-10' },
-  { id: '4', name: 'Emily Davis', phone: '4449876543', age: 31, gender: 'female', address: '321 Elm St, Suburb', medicalHistory: 'None', lastVisit: '2026-03-25' },
-];
-
 export default function PatientRegistration() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -34,6 +28,11 @@ export default function PatientRegistration() {
   const [isSearching, setIsSearching] = React.useState(false);
   const [existingPatient, setExistingPatient] = React.useState<any>(null);
   const [directorySearch, setDirectorySearch] = React.useState('');
+  const [genderFilter, setGenderFilter] = React.useState<string>('all');
+  const [ageRange, setAgeRange] = React.useState({ min: 0, max: 120 });
+  const [showFilters, setShowFilters] = React.useState(false);
+  const [patients, setPatients] = React.useState<any[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
   const { register, handleSubmit, setValue, reset, formState: { errors } } = useForm<PatientFormValues>({
     resolver: zodResolver(patientSchema),
@@ -42,54 +41,106 @@ export default function PatientRegistration() {
     }
   });
 
+  const fetchPatients = async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('patients')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching patients:', error);
+      toast.error(`Failed to load patient directory: ${error.message || 'Unknown error'}`);
+    } else {
+      setPatients(data || []);
+    }
+    setIsLoading(false);
+  };
+
+  React.useEffect(() => {
+    fetchPatients();
+  }, []);
+
   const handleSearch = async () => {
     if (!searchPhone) return;
     setIsSearching(true);
-    // Simulate search
-    setTimeout(() => {
-      const found = MOCK_PATIENTS.find(p => p.phone === searchPhone);
-      if (found) {
-        setExistingPatient(found);
-        Object.entries(found).forEach(([key, value]) => {
-          if (key !== 'id' && key !== 'lastVisit') {
-            setValue(key as any, value);
-          }
-        });
-        toast.success('Patient record found!');
-      } else {
-        setExistingPatient(null);
-        reset({ phone: searchPhone });
-        toast.info('No existing record found. Please register.');
-      }
-      setIsSearching(false);
-    }, 1000);
+    
+    const { data, error } = await supabase
+      .from('patients')
+      .select('*')
+      .eq('phone', searchPhone)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Search error:', error);
+      toast.error('Error searching for patient');
+    } else if (data) {
+      setExistingPatient(data);
+      Object.entries(data).forEach(([key, value]) => {
+        if (key !== 'id' && key !== 'created_at' && key !== 'last_visit') {
+          setValue(key as any, value);
+        }
+      });
+      toast.success('Patient record found!');
+    } else {
+      setExistingPatient(null);
+      reset({ phone: searchPhone });
+      toast.info('No existing record found. Please register.');
+    }
+    setIsSearching(false);
   };
 
-  const onSubmit = (data: PatientFormValues) => {
-    console.log('Patient Data:', data);
-    toast.success(existingPatient ? 'Patient record updated!' : 'Patient registered successfully!');
-    
-    // Reset state after action
-    reset({
-      name: '',
-      phone: '',
-      age: 0,
-      gender: 'male',
-      address: '',
-      medicalHistory: '',
-    });
-    setExistingPatient(null);
-    setSearchPhone('');
-    
-    // Switch back to directory after any successful action
-    setActiveTab('directory');
-    setSearchParams({ tab: 'directory' });
+  const onSubmit = async (data: PatientFormValues) => {
+    setIsSearching(true);
+    const patientData = {
+      ...data,
+      last_visit: new Date().toISOString().split('T')[0]
+    };
+
+    let error;
+    if (existingPatient) {
+      const { error: updateError } = await supabase
+        .from('patients')
+        .update(patientData)
+        .eq('id', existingPatient.id);
+      error = updateError;
+    } else {
+      const { error: insertError } = await supabase
+        .from('patients')
+        .insert([patientData]);
+      error = insertError;
+    }
+
+    if (error) {
+      console.error('Save error:', error);
+      toast.error('Failed to save patient record');
+    } else {
+      toast.success(existingPatient ? 'Patient record updated!' : 'Patient registered successfully!');
+      reset({
+        name: '',
+        phone: '',
+        age: 0,
+        gender: 'male',
+        address: '',
+        medicalHistory: '',
+      });
+      setExistingPatient(null);
+      setSearchPhone('');
+      fetchPatients();
+      setActiveTab('directory');
+      setSearchParams({ tab: 'directory' });
+    }
+    setIsSearching(false);
   };
 
-  const filteredPatients = MOCK_PATIENTS.filter(p => 
-    p.name.toLowerCase().includes(directorySearch.toLowerCase()) ||
-    p.phone.includes(directorySearch)
-  );
+  const filteredPatients = patients.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(directorySearch.toLowerCase()) ||
+                         p.phone.includes(directorySearch);
+    const matchesGender = genderFilter === 'all' || p.gender === genderFilter;
+    const matchesAge = p.age >= ageRange.min && p.age <= ageRange.max;
+    
+    return matchesSearch && matchesGender && matchesAge;
+  });
 
   const editPatient = (patient: any) => {
     setExistingPatient(patient);
@@ -268,13 +319,36 @@ export default function PatientRegistration() {
                   >
                     {existingPatient ? 'Update Patient Record' : 'Register New Patient'}
                   </button>
-                  <button 
-                    type="button"
-                    onClick={() => { reset(); setExistingPatient(null); setSearchPhone(''); }}
-                    className="px-10 py-5 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
-                  >
-                    Clear Form
-                  </button>
+                  {existingPatient ? (
+                    <button 
+                      type="button"
+                      onClick={() => { 
+                        reset({
+                          name: '',
+                          phone: '',
+                          age: 0,
+                          gender: 'male',
+                          address: '',
+                          medicalHistory: '',
+                        }); 
+                        setExistingPatient(null); 
+                        setSearchPhone(''); 
+                        setActiveTab('directory');
+                        setSearchParams({ tab: 'directory' });
+                      }}
+                      className="px-10 py-5 bg-rose-50 text-rose-600 font-bold rounded-2xl hover:bg-rose-100 transition-all"
+                    >
+                      Cancel Edit
+                    </button>
+                  ) : (
+                    <button 
+                      type="button"
+                      onClick={() => { reset(); setExistingPatient(null); setSearchPhone(''); }}
+                      className="px-10 py-5 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                    >
+                      Clear Form
+                    </button>
+                  )}
                 </div>
               </form>
             </div>
@@ -300,11 +374,66 @@ export default function PatientRegistration() {
                   />
                 </div>
                 <div className="flex gap-4 w-full md:w-auto">
-                  <button className="flex-1 md:flex-none px-6 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all flex items-center justify-center gap-2">
-                    <Filter size={18} /> Filters
+                  <button 
+                    onClick={() => setShowFilters(!showFilters)}
+                    className={cn(
+                      "flex-1 md:flex-none px-6 py-4 font-bold rounded-2xl transition-all flex items-center justify-center gap-2",
+                      showFilters ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    )}
+                  >
+                    <Filter size={18} /> {showFilters ? 'Hide Filters' : 'Filters'}
                   </button>
                 </div>
               </div>
+
+              <AnimatePresence>
+                {showFilters && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-slate-50 rounded-2xl mb-8 border border-slate-100">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Gender</label>
+                        <select 
+                          value={genderFilter}
+                          onChange={(e) => setGenderFilter(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        >
+                          <option value="all">All Genders</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Min Age</label>
+                        <input 
+                          type="number"
+                          value={ageRange.min}
+                          onChange={(e) => setAgeRange({ ...ageRange, min: parseInt(e.target.value) || 0 })}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                          placeholder="Min age"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Max Age</label>
+                        <input 
+                          type="number"
+                          value={ageRange.max}
+                          onChange={(e) => setAgeRange({ ...ageRange, max: parseInt(e.target.value) || 0 })}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                          placeholder="Max age"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -327,7 +456,7 @@ export default function PatientRegistration() {
                             </div>
                             <div>
                               <p className="text-sm font-bold text-slate-900">{patient.name}</p>
-                              <p className="text-[10px] text-slate-400 font-medium">ID: #{patient.id.padStart(4, '0')}</p>
+                              <p className="text-[10px] text-slate-400 font-medium">ID: #{String(patient.id).slice(-4)}</p>
                             </div>
                           </div>
                         </td>
@@ -338,10 +467,10 @@ export default function PatientRegistration() {
                           <p className="text-sm font-medium text-slate-600 capitalize">{patient.age}y / {patient.gender}</p>
                         </td>
                         <td className="py-5 px-4">
-                          <p className="text-sm font-medium text-slate-600">{patient.lastVisit}</p>
+                          <p className="text-sm font-medium text-slate-600">{patient.last_visit}</p>
                         </td>
                         <td className="py-5 px-4 text-right">
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                          <div className="flex justify-end gap-2">
                             <button 
                               onClick={() => editPatient(patient)}
                               className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"

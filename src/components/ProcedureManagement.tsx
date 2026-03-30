@@ -1,18 +1,92 @@
 import React from 'react';
-import { ClipboardList, User, Calendar, DollarSign, CheckCircle2, Search, Printer, Plus, Activity, TrendingUp, CreditCard, Clock } from 'lucide-react';
+import { ClipboardList, User, Calendar, DollarSign, CheckCircle2, Search, Printer, Plus, Activity, TrendingUp, CreditCard, Clock, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const mockProcedures = [
-  { id: '1', patient: 'Sarah Johnson', procedure: 'Laser Hair Removal', date: '2026-03-30', fee: 5000, paid: 5000, status: 'completed' },
-  { id: '2', patient: 'Michael Brown', procedure: 'Chemical Peel', date: '2026-03-30', fee: 3500, paid: 2000, status: 'pending' },
-  { id: '3', patient: 'Elena Rodriguez', procedure: 'HydraFacial', date: '2026-03-31', fee: 4500, paid: 0, status: 'pending' },
+  { id: '1', treatmentNo: 'TR-1001', patient: 'Sarah Johnson', procedure: 'Laser Hair Removal', date: '2026-03-30', fee: 5000, paid: 5000, status: 'completed' },
+  { id: '2', treatmentNo: 'TR-1002', patient: 'Michael Brown', procedure: 'Chemical Peel', date: '2026-03-30', fee: 3500, paid: 2000, status: 'pending' },
+  { id: '3', treatmentNo: 'TR-1003', patient: 'Elena Rodriguez', procedure: 'HydraFacial', date: '2026-03-31', fee: 4500, paid: 0, status: 'pending' },
 ];
 
 export default function ProcedureManagement() {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [activeFilter, setActiveFilter] = React.useState<'all' | 'pending' | 'completed'>('all');
+
+  const generateInvoice = (proc: any) => {
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(22);
+    doc.setTextColor(79, 70, 229); // Indigo-600
+    doc.text('DERMACARE CLINIC', 105, 20, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.setTextColor(100, 116, 139); // Slate-500
+    doc.text('Premium Dermatology & Aesthetic Services', 105, 28, { align: 'center' });
+    
+    doc.setDrawColor(226, 232, 240); // Slate-200
+    doc.line(20, 35, 190, 35);
+    
+    // Invoice Info
+    doc.setFontSize(18);
+    doc.setTextColor(15, 23, 42); // Slate-900
+    doc.text('INVOICE', 20, 50);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Invoice Date: ${format(new Date(), 'PP')}`, 190, 50, { align: 'right' });
+    
+    // Patient & Procedure Details
+    autoTable(doc, {
+      startY: 60,
+      head: [['Description', 'Details']],
+      body: [
+        ['Treatment Number', proc.treatmentNo],
+        ['Patient Name', proc.patient],
+        ['Procedure', proc.procedure],
+        ['Date', format(parseISO(proc.date), 'PP')],
+      ],
+      theme: 'striped',
+      headStyles: { fillColor: [79, 70, 229] },
+      styles: { fontSize: 11, cellPadding: 5 }
+    });
+    
+    // Financials
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    
+    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Financial Summary', 20, finalY);
+    
+    autoTable(doc, {
+      startY: finalY + 5,
+      body: [
+        ['Total Fee', `Rs. ${proc.fee.toLocaleString()}`],
+        ['Amount Paid', `Rs. ${proc.paid.toLocaleString()}`],
+        ['Balance Due', `Rs. ${(proc.fee - proc.paid).toLocaleString()}`],
+      ],
+      theme: 'plain',
+      styles: { fontSize: 11, cellPadding: 5 },
+      columnStyles: {
+        0: { fontStyle: 'bold', textColor: [100, 116, 139] },
+        1: { halign: 'right', fontStyle: 'bold' }
+      }
+    });
+    
+    // Footer
+    const pageHeight = doc.internal.pageSize.height;
+    doc.setFontSize(10);
+    doc.setTextColor(148, 163, 184); // Slate-400
+    doc.text('Thank you for choosing Dermacare Clinic.', 105, pageHeight - 20, { align: 'center' });
+    doc.text('This is a computer generated invoice.', 105, pageHeight - 15, { align: 'center' });
+    
+    doc.save(`Invoice_${proc.treatmentNo}_${proc.patient.replace(/\s+/g, '_')}.pdf`);
+    toast.success('Invoice generated successfully!');
+  };
 
   const filteredProcedures = mockProcedures.filter(proc => {
     const matchesSearch = proc.patient.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -144,8 +218,12 @@ export default function ProcedureManagement() {
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                      <button className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
-                        <Printer size={18} />
+                      <button 
+                        onClick={() => generateInvoice(proc)}
+                        className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                        title="Generate Invoice"
+                      >
+                        <FileText size={18} />
                       </button>
                       <button className="p-2.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all">
                         <DollarSign size={18} />

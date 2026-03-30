@@ -38,6 +38,7 @@ export default function App() {
           <Route path="/inventory" element={<InventoryManagement />} />
           <Route path="/warehouse" element={<InventoryManagement />} />
           <Route path="/consultations" element={<ConsultationModule />} />
+          <Route path="/consultations/:patientId" element={<ConsultationModule />} />
           <Route path="/procedures" element={<ProcedureManagement />} />
           <Route path="/suppliers" element={<SupplierManagement />} />
           <Route path="/patient-portal" element={<PatientPortal />} />

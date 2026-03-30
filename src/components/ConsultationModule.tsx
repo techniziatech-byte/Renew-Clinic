@@ -1,13 +1,48 @@
 import React from 'react';
-import { Stethoscope, Pill, ClipboardList, Plus, Trash2, CheckCircle2, User, Activity, FileText, AlertCircle } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Stethoscope, Pill, ClipboardList, Plus, Trash2, CheckCircle2, User, Activity, FileText, AlertCircle, ChevronLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
+import { supabase } from '../lib/supabase';
 
 export default function ConsultationModule() {
+  const { patientId } = useParams();
+  const navigate = useNavigate();
+  const [patient, setPatient] = React.useState<any>(null);
   const [prescriptions, setPrescriptions] = React.useState<any[]>([]);
   const [diagnosis, setDiagnosis] = React.useState('');
+  const [vitals, setVitals] = React.useState({
+    bp: '',
+    pulse: '',
+    weight: '',
+    temp: ''
+  });
   const [suggestedProcedures, setSuggestedProcedures] = React.useState<any[]>([]);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchPatient = async () => {
+      if (!patientId) {
+        setIsLoading(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('patients')
+        .select('*')
+        .eq('id', patientId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching patient:', error);
+        toast.error('Failed to load patient context');
+      } else {
+        setPatient(data);
+      }
+      setIsLoading(false);
+    };
+    fetchPatient();
+  }, [patientId]);
 
   const addPrescription = () => {
     setPrescriptions([...prescriptions, { id: Date.now(), medicine: '', dosage: '', duration: '' }]);
@@ -17,12 +52,16 @@ export default function ConsultationModule() {
     setPrescriptions(prescriptions.filter(p => p.id !== id));
   };
 
+  const updatePrescription = (id: number, field: string, value: string) => {
+    setPrescriptions(prescriptions.map(p => p.id === id ? { ...p, [field]: value } : p));
+  };
+
   const toggleProcedure = (procName: string) => {
     const existing = suggestedProcedures.find(p => p.name === procName);
     if (existing) {
       setSuggestedProcedures(suggestedProcedures.filter(p => p.name !== procName));
     } else {
-      setSuggestedProcedures([...suggestedProcedures, { name: procName, notes: '', fee: '', recoveryTime: '' }]);
+      setSuggestedProcedures([...suggestedProcedures, { name: procName, notes: '', fee: '0', paid: '0', recoveryTime: 'Immediate' }]);
     }
   };
 
@@ -32,22 +71,76 @@ export default function ConsultationModule() {
     setSuggestedProcedures(newProcs);
   };
 
-  const saveConsultation = () => {
+  const saveConsultation = async () => {
     if (!diagnosis) {
       toast.error('Please enter a diagnosis');
       return;
     }
+    if (!patientId) {
+      toast.error('No patient selected');
+      return;
+    }
     setIsSaving(true);
-    setTimeout(() => {
+    
+    const { error } = await supabase
+      .from('consultations')
+      .insert([{
+        patient_id: patientId,
+        diagnosis,
+        vitals,
+        prescriptions,
+        suggested_procedures: suggestedProcedures
+      }]);
+
+    if (error) {
+      console.error('Error saving consultation:', error);
+      toast.error('Failed to save consultation');
+    } else {
       toast.success('Consultation saved successfully!');
-      console.log({ diagnosis, prescriptions, suggestedProcedures });
-      setIsSaving(false);
-    }, 1500);
+      // Update patient's last visit
+      await supabase
+        .from('patients')
+        .update({ last_visit: new Date().toISOString().split('T')[0] })
+        .eq('id', patientId);
+      
+      navigate(`/patients/${patientId}`);
+    }
+    setIsSaving(false);
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-10 pb-10">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+      <div className="flex items-center gap-6 mb-8">
+        <button 
+          onClick={() => navigate(-1)}
+          className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <div>
+          <h2 className="text-2xl font-display font-black text-slate-900">New Consultation</h2>
+          <p className="text-slate-500 font-medium">Record diagnosis and treatment plan</p>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-10 h-10 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
+        </div>
+      ) : !patientId ? (
+        <div className="glass-card p-10 rounded-3xl text-center">
+          <User size={48} className="mx-auto text-slate-200 mb-4" />
+          <h3 className="text-xl font-bold text-slate-900 mb-2">No Patient Selected</h3>
+          <p className="text-slate-500 mb-6">Please select a patient from the directory to start a consultation.</p>
+          <button 
+            onClick={() => navigate('/patients')}
+            className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all"
+          >
+            Go to Directory
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         {/* Main Consultation Form */}
         <div className="lg:col-span-2 space-y-10">
           <motion.div 
@@ -61,6 +154,51 @@ export default function ConsultationModule() {
             </h3>
 
             <div className="space-y-10">
+              {/* Vitals Section */}
+              <div className="space-y-6">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center">
+                  <Activity size={14} className="mr-2" /> Vital Signs
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Blood Pressure</p>
+                    <input 
+                      value={vitals.bp}
+                      onChange={(e) => setVitals({ ...vitals, bp: e.target.value })}
+                      placeholder="120/80"
+                      className="w-full bg-white px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Pulse (bpm)</p>
+                    <input 
+                      value={vitals.pulse}
+                      onChange={(e) => setVitals({ ...vitals, pulse: e.target.value })}
+                      placeholder="72"
+                      className="w-full bg-white px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Weight (kg)</p>
+                    <input 
+                      value={vitals.weight}
+                      onChange={(e) => setVitals({ ...vitals, weight: e.target.value })}
+                      placeholder="65"
+                      className="w-full bg-white px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Temp (°F)</p>
+                    <input 
+                      value={vitals.temp}
+                      onChange={(e) => setVitals({ ...vitals, temp: e.target.value })}
+                      placeholder="98.6"
+                      className="w-full bg-white px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Diagnosis Section */}
               <div className="space-y-4">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center">
@@ -102,6 +240,8 @@ export default function ConsultationModule() {
                         <div className="space-y-2">
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Medicine</p>
                           <input 
+                            value={p.medicine}
+                            onChange={(e) => updatePrescription(p.id, 'medicine', e.target.value)}
                             placeholder="Medicine Name"
                             className="w-full bg-white px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                           />
@@ -109,6 +249,8 @@ export default function ConsultationModule() {
                         <div className="space-y-2">
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Dosage</p>
                           <input 
+                            value={p.dosage}
+                            onChange={(e) => updatePrescription(p.id, 'dosage', e.target.value)}
                             placeholder="e.g. 1-0-1 After Meal"
                             className="w-full bg-white px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                           />
@@ -117,6 +259,8 @@ export default function ConsultationModule() {
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Duration</p>
                           <div className="flex gap-2">
                             <input 
+                              value={p.duration}
+                              onChange={(e) => updatePrescription(p.id, 'duration', e.target.value)}
                               placeholder="e.g. 5 Days"
                               className="flex-1 bg-white px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                             />
@@ -200,14 +344,26 @@ export default function ConsultationModule() {
                               rows={2}
                             />
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div className="space-y-2">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Estimated Fee ($)</p>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Estimated Fee (Rs)</p>
                               <input 
-                                type="text"
+                                type="number"
+                                min="0"
                                 value={proc.fee}
                                 onChange={(e) => updateProcedure(index, 'fee', e.target.value)}
                                 placeholder="e.g. 500"
+                                className="w-full bg-white px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Paid Amount (Rs)</p>
+                              <input 
+                                type="number"
+                                min="0"
+                                value={proc.paid}
+                                onChange={(e) => updateProcedure(index, 'paid', e.target.value)}
+                                placeholder="0"
                                 className="w-full bg-white px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                               />
                             </div>
@@ -265,8 +421,8 @@ export default function ConsultationModule() {
                 <User size={32} />
               </div>
               <div>
-                <h5 className="text-xl font-display font-bold text-slate-900">Sarah Johnson</h5>
-                <p className="text-sm text-slate-500 font-medium">28 Years • Female • #101</p>
+                <h5 className="text-xl font-display font-bold text-slate-900">{patient?.name || 'Loading...'}</h5>
+                <p className="text-sm text-slate-500 font-medium">{patient?.age} Years • {patient?.gender} • #{String(patient?.id).slice(-4)}</p>
               </div>
             </div>
             
@@ -277,13 +433,13 @@ export default function ConsultationModule() {
                   <p className="text-[10px] uppercase font-bold tracking-widest">Medical Alerts</p>
                 </div>
                 <p className="text-xs text-rose-700 font-bold leading-relaxed">
-                  Allergic to Penicillin. History of mild eczema.
+                  {patient?.medical_history || 'No medical history recorded.'}
                 </p>
               </div>
               
               <div className="space-y-2">
                 <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Last Visit</p>
-                <p className="text-sm font-bold text-slate-700">15th Jan 2026 - Routine Checkup</p>
+                <p className="text-sm font-bold text-slate-700">{patient?.last_visit || 'No previous visits'}</p>
               </div>
 
               <div className="space-y-2">
@@ -349,6 +505,7 @@ export default function ConsultationModule() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
