@@ -1,0 +1,155 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with roles and access control.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "staff", "doctor", "pharmacist", "inventory_manager"] }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Patient": {
+      "title": "Patient",
+      "description": "Patient registration data.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "age": { "type": "number" },
+        "gender": { "type": "string", "enum": ["male", "female", "other"] },
+        "address": { "type": "string" },
+        "medicalHistory": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone", "age", "gender", "address"]
+    },
+    "Doctor": {
+      "title": "Doctor",
+      "description": "Doctor profile and schedule.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "specialization": { "type": "string" },
+        "schedule": { "type": "object" }
+      },
+      "required": ["name", "specialization"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Scheduled appointment for a patient.",
+      "type": "object",
+      "properties": {
+        "patientId": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "time": { "type": "string" },
+        "status": { "type": "string", "enum": ["scheduled", "completed", "cancelled"] }
+      },
+      "required": ["patientId", "doctorId", "date", "time", "status"]
+    },
+    "OPDSlip": {
+      "title": "OPD Slip",
+      "description": "OPD slip generated for consultation.",
+      "type": "object",
+      "properties": {
+        "patientId": { "type": "string" },
+        "tokenNumber": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" },
+        "doctorId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "consulted"] }
+      },
+      "required": ["patientId", "tokenNumber", "date", "doctorId", "status"]
+    },
+    "Consultation": {
+      "title": "Consultation",
+      "description": "Doctor's diagnosis and prescription.",
+      "type": "object",
+      "properties": {
+        "opdSlipId": { "type": "string" },
+        "diagnosis": { "type": "string" },
+        "prescriptions": { "type": "array", "items": { "type": "object" } },
+        "suggestedProcedures": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["opdSlipId", "diagnosis"]
+    },
+    "Procedure": {
+      "title": "Procedure",
+      "description": "Dermatology or aesthetic procedure details.",
+      "type": "object",
+      "properties": {
+        "patientId": { "type": "string" },
+        "procedureName": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "fee": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "completed"] }
+      },
+      "required": ["patientId", "procedureName", "date", "fee", "paidAmount", "status"]
+    },
+    "Medicine": {
+      "title": "Medicine",
+      "description": "Medicine inventory item.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "quantity": { "type": "number" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "lowStockAlert": { "type": "number" }
+      },
+      "required": ["name", "quantity", "price"]
+    },
+    "WarehouseItem": {
+      "title": "Warehouse Item",
+      "description": "Raw materials or finished goods in warehouse.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["finished", "unfinished"] },
+        "quantity": { "type": "number" },
+        "unit": { "type": "string" }
+      },
+      "required": ["name", "type", "quantity"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Supplier registration.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "contact": { "type": "string" },
+        "products": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["name", "contact"]
+    },
+    "PurchaseInvoice": {
+      "title": "Purchase Invoice",
+      "description": "Invoice for stock purchase.",
+      "type": "object",
+      "properties": {
+        "supplierId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "items": { "type": "array", "items": { "type": "object" } },
+        "totalAmount": { "type": "number" }
+      },
+      "required": ["supplierId", "date", "items", "totalAmount"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "User", "description": "User profiles." },
+    "/patients/{patientId}": { "schema": "Patient", "description": "Patient records." },
+    "/doctors/{doctorId}": { "schema": "Doctor", "description": "Doctor profiles." },
+    "/appointments/{appointmentId}": { "schema": "Appointment", "description": "Scheduled appointments." },
+    "/opd_slips/{slipId}": { "schema": "OPDSlip", "description": "OPD slips." },
+    "/consultations/{consultationId}": { "schema": "Consultation", "description": "Consultation records." },
+    "/procedures/{procedureId}": { "schema": "Procedure", "description": "Procedure records." },
+    "/inventory/{medicineId}": { "schema": "Medicine", "description": "Medicine inventory." },
+    "/warehouse/{itemId}": { "schema": "WarehouseItem", "description": "Warehouse stock." },
+    "/suppliers/{supplierId}": { "schema": "Supplier", "description": "Suppliers list." },
+    "/purchase_invoices/{invoiceId}": { "schema": "PurchaseInvoice", "description": "Purchase invoices." }
+  }
+}
