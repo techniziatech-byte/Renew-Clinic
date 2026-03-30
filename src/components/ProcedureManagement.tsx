@@ -1,20 +1,69 @@
 import React from 'react';
-import { ClipboardList, User, Calendar, DollarSign, CheckCircle2, Search, Printer, Plus, Activity, TrendingUp, CreditCard, Clock, FileText } from 'lucide-react';
+import { ClipboardList, User, Calendar, DollarSign, CheckCircle2, Search, Printer, Plus, Activity, TrendingUp, CreditCard, Clock, FileText, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
-const mockProcedures = [
-  { id: '1', treatmentNo: 'TR-1001', patient: 'Sarah Johnson', procedure: 'Laser Hair Removal', date: '2026-03-30', fee: 5000, paid: 5000, status: 'completed' },
-  { id: '2', treatmentNo: 'TR-1002', patient: 'Michael Brown', procedure: 'Chemical Peel', date: '2026-03-30', fee: 3500, paid: 2000, status: 'pending' },
-  { id: '3', treatmentNo: 'TR-1003', patient: 'Elena Rodriguez', procedure: 'HydraFacial', date: '2026-03-31', fee: 4500, paid: 0, status: 'pending' },
-];
+import { supabase } from '../lib/supabase';
 
 export default function ProcedureManagement() {
+  const [procedures, setProcedures] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [activeFilter, setActiveFilter] = React.useState<'all' | 'pending' | 'completed'>('all');
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [newEntry, setNewEntry] = React.useState({
+    patient: '',
+    procedure: '',
+    date: new Date().toISOString().split('T')[0],
+    fee: 0,
+    paid: 0,
+    status: 'pending'
+  });
+
+  React.useEffect(() => {
+    fetchProcedures();
+  }, []);
+
+  const fetchProcedures = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('procedures')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      toast.error('Failed to fetch procedures');
+    } else {
+      setProcedures(data || []);
+    }
+    setLoading(false);
+  };
+
+  const handleAddProcedure = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const treatmentNo = `TR-${Math.floor(1000 + Math.random() * 9000)}`;
+    const { data, error } = await supabase
+      .from('procedures')
+      .insert([{ ...newEntry, treatmentNo }]);
+
+    if (error) {
+      toast.error('Failed to add procedure');
+    } else {
+      toast.success('Procedure added successfully');
+      setIsModalOpen(false);
+      setNewEntry({
+        patient: '',
+        procedure: '',
+        date: new Date().toISOString().split('T')[0],
+        fee: 0,
+        paid: 0,
+        status: 'pending'
+      });
+      fetchProcedures();
+    }
+  };
 
   const generateInvoice = (proc: any) => {
     const doc = new jsPDF();
@@ -88,17 +137,21 @@ export default function ProcedureManagement() {
     toast.success('Invoice generated successfully!');
   };
 
-  const filteredProcedures = mockProcedures.filter(proc => {
+  const filteredProcedures = procedures.filter(proc => {
     const matchesSearch = proc.patient.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          proc.procedure.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = activeFilter === 'all' || proc.status === activeFilter;
     return matchesSearch && matchesFilter;
   });
 
+  const totalRevenue = procedures.reduce((acc, curr) => acc + Number(curr.fee), 0);
+  const totalCollected = procedures.reduce((acc, curr) => acc + Number(curr.paid), 0);
+  const totalPending = totalRevenue - totalCollected;
+
   const stats = [
-    { label: 'Total Revenue', value: 'Rs. 13,000', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Collected', value: 'Rs. 7,000', icon: CreditCard, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-    { label: 'Pending', value: 'Rs. 6,000', icon: Clock, color: 'text-rose-600', bg: 'bg-rose-50' },
+    { label: 'Total Revenue', value: `Rs. ${totalRevenue.toLocaleString()}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'Collected', value: `Rs. ${totalCollected.toLocaleString()}`, icon: CreditCard, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { label: 'Pending', value: `Rs. ${totalPending.toLocaleString()}`, icon: Clock, color: 'text-rose-600', bg: 'bg-rose-50' },
   ];
 
   return (
@@ -153,7 +206,7 @@ export default function ProcedureManagement() {
             />
           </div>
           <button 
-            onClick={() => toast.success('New procedure form opened')}
+            onClick={() => setIsModalOpen(true)}
             className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-[0.98] flex items-center gap-2 whitespace-nowrap"
           >
             <Plus size={20} />
@@ -182,7 +235,11 @@ export default function ProcedureManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredProcedures.map((proc) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-8 py-10 text-center text-slate-400 font-bold">Loading procedures...</td>
+                </tr>
+              ) : filteredProcedures.map((proc) => (
                 <tr key={proc.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-8 py-6">
                     <div className="flex items-center">
@@ -225,9 +282,6 @@ export default function ProcedureManagement() {
                       >
                         <FileText size={18} />
                       </button>
-                      <button className="p-2.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all">
-                        <DollarSign size={18} />
-                      </button>
                     </div>
                   </td>
                 </tr>
@@ -235,13 +289,130 @@ export default function ProcedureManagement() {
             </tbody>
           </table>
         </div>
-        {filteredProcedures.length === 0 && (
+        {!loading && filteredProcedures.length === 0 && (
           <div className="py-20 text-center">
             <Activity size={48} className="mx-auto text-slate-100 mb-4" />
             <p className="text-slate-400 font-bold">No procedures found Matching your criteria</p>
           </div>
         )}
       </motion.div>
+
+      {/* New Entry Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsModalOpen(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white rounded-[32px] shadow-2xl w-full max-w-xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-2xl font-display font-bold text-slate-900">New Procedure Entry</h3>
+                <button 
+                  onClick={() => setIsModalOpen(false)}
+                  className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  <X size={20} className="text-slate-400" />
+                </button>
+              </div>
+              
+              <form onSubmit={handleAddProcedure} className="p-8 space-y-6">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Patient Name</label>
+                    <input 
+                      required
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Enter patient name"
+                      value={newEntry.patient}
+                      onChange={(e) => setNewEntry({...newEntry, patient: e.target.value})}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Procedure Name</label>
+                    <input 
+                      required
+                      type="text" 
+                      className="input-field" 
+                      placeholder="e.g. Laser Hair Removal"
+                      value={newEntry.procedure}
+                      onChange={(e) => setNewEntry({...newEntry, procedure: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Date</label>
+                    <input 
+                      required
+                      type="date" 
+                      className="input-field"
+                      value={newEntry.date}
+                      onChange={(e) => setNewEntry({...newEntry, date: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Status</label>
+                    <select 
+                      className="input-field"
+                      value={newEntry.status}
+                      onChange={(e) => setNewEntry({...newEntry, status: e.target.value})}
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Total Fee (Rs)</label>
+                    <input 
+                      required
+                      type="number" 
+                      className="input-field" 
+                      placeholder="0"
+                      value={newEntry.fee}
+                      onChange={(e) => setNewEntry({...newEntry, fee: Number(e.target.value)})}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Amount Paid (Rs)</label>
+                    <input 
+                      required
+                      type="number" 
+                      className="input-field" 
+                      placeholder="0"
+                      value={newEntry.paid}
+                      onChange={(e) => setNewEntry({...newEntry, paid: Number(e.target.value)})}
+                    />
+                  </div>
+                </div>
+                
+                <div className="pt-4 flex gap-4">
+                  <button 
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex-1 px-6 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 px-6 py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all"
+                  >
+                    Save Entry
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

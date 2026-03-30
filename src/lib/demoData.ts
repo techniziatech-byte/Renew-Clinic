@@ -35,6 +35,11 @@ const getStorageData = () => {
           { id: '1', patient_id: '1', date: new Date().toISOString(), notes: 'Initial consultation. Patient reports mild skin irritation.', diagnosis: 'Contact Dermatitis', treatment: 'Topical steroid cream', created_at: new Date().toISOString() }
         ],
         medical_files: [],
+        procedures: [
+          { id: '1', treatmentNo: 'TR-1001', patient: 'Sarah Johnson', procedure: 'Laser Hair Removal', date: '2026-03-30', fee: 5000, paid: 5000, status: 'completed', created_at: new Date().toISOString() },
+          { id: '2', treatmentNo: 'TR-1002', patient: 'Michael Brown', procedure: 'Chemical Peel', date: '2026-03-30', fee: 3500, paid: 2000, status: 'pending', created_at: new Date().toISOString() },
+          { id: '3', treatmentNo: 'TR-1003', patient: 'Elena Rodriguez', procedure: 'HydraFacial', date: '2026-03-31', fee: 4500, paid: 0, status: 'pending', created_at: new Date().toISOString() },
+        ],
         files: {}
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
