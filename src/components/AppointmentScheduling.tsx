@@ -2,8 +2,9 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Calendar as CalendarIcon, Clock, User, Stethoscope, CheckCircle2, AlertCircle, CalendarCheck, Info } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, User, Stethoscope, CheckCircle2, AlertCircle, CalendarCheck, Info, ExternalLink, Bell, Mail, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { format, addDays, startOfToday, isSameDay, parseISO } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -13,14 +14,15 @@ const appointmentSchema = z.object({
   doctorId: z.string().min(1, 'Please select a doctor'),
   date: z.string().min(1, 'Please select a date'),
   time: z.string().min(1, 'Please select a time slot'),
+  reminderType: z.enum(['none', 'sms', 'email', 'both']),
 });
 
 type AppointmentFormValues = z.infer<typeof appointmentSchema>;
 
 const doctors = [
-  { id: '1', name: 'Dr. Emily Smith', specialization: 'Dermatologist' },
-  { id: '2', name: 'Dr. James Wilson', specialization: 'Cosmetic Surgeon' },
-  { id: '3', name: 'Dr. Sarah Chen', specialization: 'Aesthetic Specialist' },
+  { id: '1', name: 'Dr. Emily Smith', specialization: 'Dermatologist', email: 'emily.smith@dermacare.com', phone: '+1 555-0101' },
+  { id: '2', name: 'Dr. James Wilson', specialization: 'Cosmetic Surgeon', email: 'james.wilson@dermacare.com', phone: '+1 555-0102' },
+  { id: '3', name: 'Dr. Sarah Chen', specialization: 'Aesthetic Specialist', email: 'sarah.chen@dermacare.com', phone: '+1 555-0103' },
 ];
 
 const timeSlots = [
@@ -32,16 +34,22 @@ export default function AppointmentScheduling() {
   const [selectedDate, setSelectedDate] = React.useState<Date>(startOfToday());
   const [selectedTime, setSelectedTime] = React.useState<string | null>(null);
   const [isBooking, setIsBooking] = React.useState(false);
+  const [scheduledReminders, setScheduledReminders] = React.useState<any[]>([]);
 
   const { register, handleSubmit, setValue, watch, formState: { errors }, reset } = useForm<AppointmentFormValues>({
     resolver: zodResolver(appointmentSchema),
     defaultValues: {
+      patientName: '',
+      doctorId: '',
       date: format(startOfToday(), 'yyyy-MM-dd'),
+      time: '',
+      reminderType: 'sms',
     }
   });
 
   const watchedDoctor = watch('doctorId');
   const watchedPatient = watch('patientName');
+  const watchedReminderType = watch('reminderType');
 
   const next7Days = Array.from({ length: 7 }, (_, i) => addDays(startOfToday(), i));
   const bookedSlots = ['10:00 AM', '02:30 PM']; // Mock data
@@ -52,9 +60,26 @@ export default function AppointmentScheduling() {
       return;
     }
     setIsBooking(true);
+    
+    // Simulate API call
     setTimeout(() => {
+      const doctor = doctors.find(d => d.id === data.doctorId);
+      const newReminder = {
+        id: Math.random().toString(36).substr(2, 9),
+        patientName: data.patientName,
+        doctorName: doctor?.name,
+        date: data.date,
+        time: selectedTime,
+        type: data.reminderType,
+        status: 'Scheduled',
+        scheduledFor: format(addDays(new Date(data.date), -1), 'PPP') + ' at 09:00 AM'
+      };
+
+      setScheduledReminders(prev => [newReminder, ...prev]);
+      
       console.log('Booking Data:', { ...data, time: selectedTime });
-      toast.success(`Appointment confirmed for ${data.patientName} on ${format(selectedDate, 'PPP')} at ${selectedTime}`);
+      toast.success(`Appointment confirmed! Automated reminders scheduled for ${data.patientName} and ${doctor?.name}.`);
+      
       setIsBooking(false);
       reset();
       setSelectedTime(null);
@@ -62,8 +87,20 @@ export default function AppointmentScheduling() {
     }, 1500);
   };
 
+  const sendManualReminder = (reminderId: string) => {
+    toast.promise(
+      new Promise((resolve) => setTimeout(resolve, 1000)),
+      {
+        loading: 'Sending manual reminder...',
+        success: 'Reminder sent successfully to both patient and doctor!',
+        error: 'Failed to send reminder.',
+      }
+    );
+    setScheduledReminders(prev => prev.map(r => r.id === reminderId ? { ...r, status: 'Sent' } : r));
+  };
+
   return (
-    <div className="max-w-6xl mx-auto space-y-10 pb-10">
+    <div className="max-w-7xl mx-auto space-y-10 pb-10">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         {/* Left Column: Form */}
         <div className="lg:col-span-2 space-y-10">
@@ -171,6 +208,46 @@ export default function AppointmentScheduling() {
                 {errors.time && <p className="text-xs text-rose-500 font-bold mt-1">{errors.time.message}</p>}
               </div>
 
+              {/* Reminder Settings */}
+              <div className="space-y-6 pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center">
+                    <Bell size={14} className="mr-2 text-indigo-600" /> Automated Reminders
+                  </label>
+                  <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md uppercase tracking-widest">
+                    Smart Scheduling Enabled
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {[
+                    { id: 'none', label: 'None', icon: AlertCircle },
+                    { id: 'sms', label: 'SMS Only', icon: MessageSquare },
+                    { id: 'email', label: 'Email Only', icon: Mail },
+                    { id: 'both', label: 'SMS & Email', icon: Bell },
+                  ].map((type) => (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={() => setValue('reminderType', type.id as any)}
+                      className={cn(
+                        "flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all",
+                        watchedReminderType === type.id
+                          ? "bg-indigo-50 border-indigo-200 text-indigo-600 shadow-sm"
+                          : "bg-white border-slate-100 text-slate-400 hover:border-slate-200"
+                      )}
+                    >
+                      <type.icon size={20} />
+                      <span className="text-[10px] font-bold uppercase tracking-tight">{type.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                  Reminders are sent 24 hours before the appointment to both the patient and the assigned doctor. 
+                  SMS reminders use the clinic's automated gateway.
+                </p>
+              </div>
+
               <div className="pt-6">
                 <button 
                   type="submit"
@@ -192,6 +269,56 @@ export default function AppointmentScheduling() {
               </div>
             </form>
           </motion.div>
+
+          {/* Scheduled Reminders List */}
+          {scheduledReminders.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-card p-10 rounded-3xl"
+            >
+              <h3 className="text-xl font-display font-bold text-slate-900 mb-8 flex items-center">
+                <Clock className="mr-3 text-indigo-600" size={24} />
+                Recently Scheduled Reminders
+              </h3>
+              <div className="space-y-4">
+                {scheduledReminders.map((reminder) => (
+                  <div key={reminder.id} className="p-6 rounded-2xl border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center",
+                        reminder.status === 'Sent' ? "bg-emerald-50 text-emerald-600" : "bg-indigo-50 text-indigo-600"
+                      )}>
+                        {reminder.type === 'email' ? <Mail size={18} /> : reminder.type === 'sms' ? <MessageSquare size={18} /> : <Bell size={18} />}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">{reminder.patientName} & {reminder.doctorName}</h4>
+                        <p className="text-[10px] text-slate-500 font-medium">
+                          Scheduled for: {reminder.scheduledFor} • Type: <span className="uppercase">{reminder.type}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                        reminder.status === 'Sent' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+                      )}>
+                        {reminder.status}
+                      </span>
+                      {reminder.status === 'Scheduled' && (
+                        <button 
+                          onClick={() => sendManualReminder(reminder.id)}
+                          className="text-[10px] font-black text-indigo-600 hover:underline uppercase tracking-widest"
+                        >
+                          Send Now
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* Right Column: Summary & Info */}
@@ -241,29 +368,52 @@ export default function AppointmentScheduling() {
                   </p>
                 </div>
               </div>
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <Bell size={20} />
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold tracking-widest opacity-70">Reminder</p>
+                  <p className="font-bold uppercase">{watchedReminderType}</p>
+                </div>
+              </div>
             </div>
-            <div className="mt-10 pt-10 border-t border-white/20">
+            <div className="mt-10 pt-10 border-t border-white/20 space-y-6">
               <div className="flex items-center gap-3 text-indigo-100 text-sm">
                 <Info size={16} />
-                <p>Confirmation will be sent via SMS</p>
+                <p>Reminders scheduled automatically</p>
               </div>
+              
+              {watchedPatient && (
+                <Link 
+                  to="/patient-portal"
+                  className="flex items-center justify-center gap-2 w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl transition-all text-xs font-bold uppercase tracking-widest"
+                >
+                  <ExternalLink size={14} />
+                  View Patient Portal
+                </Link>
+              )}
             </div>
           </motion.div>
 
           <div className="glass-card p-8 rounded-3xl">
-            <h4 className="text-sm font-bold text-slate-900 mb-4">Quick Tips</h4>
+            <h4 className="text-sm font-bold text-slate-900 mb-4">Reminder Policy</h4>
             <ul className="space-y-3 text-xs text-slate-500 font-medium">
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
-                Select a date to see available slots
+                Reminders are sent 24h before
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
-                Grayed out slots are already booked
+                Doctor receives email & SMS
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
-                Appointments can be rescheduled up to 24h before
+                Patient receives chosen type
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                Manual override available
               </li>
             </ul>
           </div>

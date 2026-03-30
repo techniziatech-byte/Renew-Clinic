@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 export default function ConsultationModule() {
   const [prescriptions, setPrescriptions] = React.useState<any[]>([]);
   const [diagnosis, setDiagnosis] = React.useState('');
-  const [suggestedProcedures, setSuggestedProcedures] = React.useState<string[]>([]);
+  const [suggestedProcedures, setSuggestedProcedures] = React.useState<any[]>([]);
   const [isSaving, setIsSaving] = React.useState(false);
 
   const addPrescription = () => {
@@ -17,12 +17,19 @@ export default function ConsultationModule() {
     setPrescriptions(prescriptions.filter(p => p.id !== id));
   };
 
-  const toggleProcedure = (proc: string) => {
-    if (suggestedProcedures.includes(proc)) {
-      setSuggestedProcedures(suggestedProcedures.filter(p => p !== proc));
+  const toggleProcedure = (procName: string) => {
+    const existing = suggestedProcedures.find(p => p.name === procName);
+    if (existing) {
+      setSuggestedProcedures(suggestedProcedures.filter(p => p.name !== procName));
     } else {
-      setSuggestedProcedures([...suggestedProcedures, proc]);
+      setSuggestedProcedures([...suggestedProcedures, { name: procName, notes: '', fee: '', recoveryTime: '' }]);
     }
+  };
+
+  const updateProcedure = (index: number, field: string, value: string) => {
+    const newProcs = [...suggestedProcedures];
+    newProcs[index] = { ...newProcs[index], [field]: value };
+    setSuggestedProcedures(newProcs);
   };
 
   const saveConsultation = () => {
@@ -140,20 +147,85 @@ export default function ConsultationModule() {
                   <Activity size={14} className="mr-2" /> Suggested Procedures
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {['Laser Hair Removal', 'Chemical Peel', 'HydraFacial', 'Botox', 'Fillers', 'Microneedling'].map((proc) => (
-                    <button
-                      key={proc}
-                      onClick={() => toggleProcedure(proc)}
-                      className={cn(
-                        "px-4 py-4 rounded-2xl border text-xs font-bold transition-all",
-                        suggestedProcedures.includes(proc)
-                          ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100"
-                          : "bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-slate-50"
-                      )}
-                    >
-                      {proc}
-                    </button>
-                  ))}
+                  {['Laser Hair Removal', 'Chemical Peel', 'HydraFacial', 'Botox', 'Fillers', 'Microneedling'].map((proc) => {
+                    const isSelected = suggestedProcedures.some(p => p.name === proc);
+                    return (
+                      <button
+                        key={proc}
+                        onClick={() => toggleProcedure(proc)}
+                        className={cn(
+                          "px-4 py-4 rounded-2xl border text-xs font-bold transition-all",
+                          isSelected
+                            ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100"
+                            : "bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-slate-50"
+                        )}
+                      >
+                        {proc}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Detailed Procedure Notes */}
+                <div className="space-y-4">
+                  <AnimatePresence mode="popLayout">
+                    {suggestedProcedures.map((proc, index) => (
+                      <motion.div
+                        key={proc.name}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="p-6 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-4"
+                      >
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-bold text-indigo-900 flex items-center">
+                            <Activity size={16} className="mr-2" /> {proc.name} Details
+                          </h4>
+                          <button 
+                            onClick={() => toggleProcedure(proc.name)}
+                            className="text-[10px] font-black text-rose-600 hover:text-rose-700 uppercase tracking-widest"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Procedure Notes</p>
+                            <textarea 
+                              value={proc.notes}
+                              onChange={(e) => updateProcedure(index, 'notes', e.target.value)}
+                              placeholder="Specific instructions or areas to focus on..."
+                              className="w-full bg-white px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                              rows={2}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Estimated Fee ($)</p>
+                              <input 
+                                type="text"
+                                value={proc.fee}
+                                onChange={(e) => updateProcedure(index, 'fee', e.target.value)}
+                                placeholder="e.g. 500"
+                                className="w-full bg-white px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Recovery Time</p>
+                              <input 
+                                type="text"
+                                value={proc.recoveryTime}
+                                onChange={(e) => updateProcedure(index, 'recoveryTime', e.target.value)}
+                                placeholder="e.g. 2-3 Days"
+                                className="w-full bg-white px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
               </div>
 
@@ -227,6 +299,31 @@ export default function ConsultationModule() {
                   </div>
                 </div>
               </div>
+
+              {suggestedProcedures.length > 0 && (
+                <div className="pt-6 border-t border-slate-100 space-y-4">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Procedure Summary</p>
+                  <div className="space-y-4">
+                    {suggestedProcedures.map((proc) => (
+                      <div key={proc.name} className="space-y-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-600 font-medium">{proc.name}</span>
+                          <span className="text-slate-900 font-bold">${proc.fee || '0'}</span>
+                        </div>
+                        {proc.recoveryTime && (
+                          <p className="text-[10px] text-slate-400 italic">Recovery: {proc.recoveryTime}</p>
+                        )}
+                      </div>
+                    ))}
+                    <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-900 uppercase">Total Est. Fee</span>
+                      <span className="text-lg font-display font-bold text-indigo-600">
+                        ${suggestedProcedures.reduce((acc, curr) => acc + (parseFloat(curr.fee) || 0), 0)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
 

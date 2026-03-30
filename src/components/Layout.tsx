@@ -42,6 +42,7 @@ const navItems = [
   { name: 'Inventory', path: '/inventory', icon: Package, roles: ['admin', 'pharmacist', 'inventory_manager'] },
   { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['admin', 'inventory_manager'] },
   { name: 'Suppliers', path: '/suppliers', icon: Truck, roles: ['admin', 'inventory_manager'] },
+  { name: 'Patient Portal', path: '/patient-portal', icon: UserCircle, roles: ['admin', 'staff', 'doctor'] },
 ];
 
 export default function Layout({ children, userRole = 'admin', userName = 'Admin User', onLogout }: LayoutProps) {

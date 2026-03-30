@@ -1,13 +1,16 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
+  UserPlus,
   Calendar, 
   TrendingUp, 
   AlertCircle, 
   Activity,
   CheckCircle2,
   Clock,
-  ClipboardList
+  ClipboardList,
+  Search
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { 
@@ -61,6 +64,8 @@ function cn(...inputs: any[]) {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+
   return (
     <div className="space-y-10 pb-10">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -151,7 +156,12 @@ export default function Dashboard() {
         <div className="lg:col-span-2 glass-card rounded-3xl overflow-hidden">
           <div className="p-8 border-b border-slate-50 flex items-center justify-between">
             <h3 className="text-xl font-display font-bold text-slate-900">Recent Appointments</h3>
-            <button className="text-sm font-bold text-indigo-600 hover:text-indigo-700 px-4 py-2 bg-indigo-50 rounded-xl transition-all">View All</button>
+            <button 
+              onClick={() => navigate('/appointments')}
+              className="text-sm font-bold text-indigo-600 hover:text-indigo-700 px-4 py-2 bg-indigo-50 rounded-xl transition-all"
+            >
+              View All
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -201,19 +211,37 @@ export default function Dashboard() {
         <div className="glass-card p-10 rounded-3xl">
           <h3 className="text-xl font-display font-bold text-slate-900 mb-8">Quick Actions</h3>
           <div className="space-y-4">
-            <button className="w-full flex items-center p-5 rounded-2xl border border-slate-100 hover:bg-indigo-600 hover:border-indigo-600 hover:shadow-xl hover:shadow-indigo-200 transition-all group">
+            <button 
+              onClick={() => navigate('/patients')}
+              className="w-full flex items-center p-5 rounded-2xl border border-slate-100 hover:bg-indigo-600 hover:border-indigo-600 hover:shadow-xl hover:shadow-indigo-200 transition-all group"
+            >
               <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600 group-hover:bg-white/20 group-hover:text-white transition-colors">
-                <Users size={22} />
+                <UserPlus size={22} />
               </div>
               <span className="ml-5 font-bold text-slate-700 group-hover:text-white">Register Patient</span>
             </button>
-            <button className="w-full flex items-center p-5 rounded-2xl border border-slate-100 hover:bg-sky-500 hover:border-sky-500 hover:shadow-xl hover:shadow-sky-200 transition-all group">
+            <button 
+              onClick={() => navigate('/patients')}
+              className="w-full flex items-center p-5 rounded-2xl border border-slate-100 hover:bg-slate-800 hover:border-slate-800 hover:shadow-xl hover:shadow-slate-200 transition-all group"
+            >
+              <div className="p-3 bg-slate-100 rounded-xl text-slate-600 group-hover:bg-white/20 group-hover:text-white transition-colors">
+                <Search size={22} />
+              </div>
+              <span className="ml-5 font-bold text-slate-700 group-hover:text-white">Patient Directory</span>
+            </button>
+            <button 
+              onClick={() => navigate('/appointments')}
+              className="w-full flex items-center p-5 rounded-2xl border border-slate-100 hover:bg-sky-500 hover:border-sky-500 hover:shadow-xl hover:shadow-sky-200 transition-all group"
+            >
               <div className="p-3 bg-sky-50 rounded-xl text-sky-600 group-hover:bg-white/20 group-hover:text-white transition-colors">
                 <Calendar size={22} />
               </div>
               <span className="ml-5 font-bold text-slate-700 group-hover:text-white">Book Appointment</span>
             </button>
-            <button className="w-full flex items-center p-5 rounded-2xl border border-slate-100 hover:bg-emerald-500 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-200 transition-all group">
+            <button 
+              onClick={() => navigate('/opd')}
+              className="w-full flex items-center p-5 rounded-2xl border border-slate-100 hover:bg-emerald-500 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-200 transition-all group"
+            >
               <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600 group-hover:bg-white/20 group-hover:text-white transition-colors">
                 <ClipboardList size={22} />
               </div>
